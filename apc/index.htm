@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>APC Scraper</title>
+  <script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
+  <style type="text/css">
+	.content { padding: 5px; margin: 5px; border: 1px solid #dedede; overflow: hidden }
+	.counter:before { content: "Post #" }
+	.counter { float:right; font-size:small }
+	blockquote{ border-left: 4px solid #ddd; padding-left: 6px; margin-left: 10px;}
+	.list_posts{ border-top: 1px solid #efefef; padding-top: 5px; margin-top: 5px; }
+	h5{ margin: 0; }
+	button#go{ font-size: 1em; }
+	h1 > div { padding-top: 10px; }
+	h1 { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>
+	<div><label>Username: <input id="username" /></label></div>
+	<div><label>Password: <input id="password" type="password"/></label></div>
+    <div><button id="go">Load Posts</button></h1></div>
+  <div id="posts"></div>
+
+  <script>
+    var loginUrl = "/community/index.php?action=login2";
+	var profileUrl = "/community/index.php?action=profile";
+	var postsUrl = "/community/index.php?action=profile;area=showposts";
+	var $header = $('h1');
+	
+	$('#go').click(function(){
+		var username = $("#username").val();
+		var password = $("#password").val();
+		
+		var userId = parseInt($('#userId').val(), 10);
+
+		$header.text("Logging you in...");
+		
+		$.post(loginUrl, { user: username, passwrd: password }, function(data){
+			$header.text("Getting your user id...");
+			GetUserId(function(userId, postCount){
+                $header.text("Loading your posts...");
+			    LoadData(userId, postCount, 0);	
+			});
+		});
+	});
+
+	function GetUserId(callback){
+		$.get(profileUrl, function(data){ 
+			var $profilePage = $(data);
+			var $link = $profilePage.filter('link[rel=canonical]');
+			var href = $link.attr('href');
+			var params = href.split(';');
+			var userparamString = params.pop();	
+			var userIdString = userparamString.split('=').pop();
+			var userId = parseInt(userIdString, 10);
+			
+			var postCountString = $profilePage.find('dt:contains("Posts:")').next('dd').text();
+			var postCount = parseInt(postCountString);
+			
+			console.log({ userId: userId, postCount: postCount });
+			callback(userId, postCount);
+		});
+	}
+	
+	
+	function LoadData(userId, maxPosts, offset){
+		var url = postsUrl + ";u=" + userId
+                           + ";start=" + offset;
+		console.log(url);
+		$.get(url)
+		  .done(function(d){ 
+		    ProcessResults(d, userId, maxPosts, offset);
+		  })
+		  .always(function(){
+			offset += 25;
+			if(offset < maxPosts){
+				var percentComplete = Math.round(offset/maxPosts * 1000)/10; // round to 1 decimal place
+				if(percentComplete > 100){ percentComplete = 100; }
+				$header.text("Loading your posts... " + percentComplete + "%");
+				LoadData(userId, maxPosts, offset);
+			}
+			else{
+				$header.text("Your Posts:");
+			}
+		  })
+		  .fail(function(e){ console.log(e) });
+	}
+
+	function ProcessResults(data, userId, maxPosts, offset){
+		var $topics = $(data).find('.topic')
+		$topics.find('.floatright, .core_posts > br.clear').remove();
+		
+		$topics.appendTo($('#posts'));		
+	}
+  </script>  
+</body>
+</html>
