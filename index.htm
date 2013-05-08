@@ -5,95 +5,124 @@
   <title>APC Scraper</title>
   <script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
   <style type="text/css">
-	.content { padding: 5px; margin: 5px; border: 1px solid #dedede; overflow: hidden }
-	.counter:before { content: "Post #" }
-	.counter { float:right; font-size:small }
-	blockquote{ border-left: 4px solid #ddd; padding-left: 6px; margin-left: 10px;}
-	.list_posts{ border-top: 1px solid #efefef; padding-top: 5px; margin-top: 5px; }
-	h5{ margin: 0; }
-	button#go{ font-size: 1em; }
-	h1 > div { padding-top: 10px; }
-	h1 { margin-top: 10px; }
+    body { font-family: sans-serif; }
+    .content { padding: 5px; margin: 5px; border: 1px solid #dedede; overflow: hidden }
+    .counter:before { content: "Post #" }
+    .counter { float:right; font-size:small }
+    blockquote{ border-left: 4px solid #ddd; padding-left: 6px; margin-left: 10px;}
+    .list_posts{ border-top: 1px solid #efefef; padding-top: 5px; margin-top: 5px; }
+    h5{ margin: 0; }
+    #go{ margin-top: 10px; font-size: 1em; }
+    h1 > div { padding-top: 10px; }
+    h1 { margin-top: 10px; }
+    #instructions,#form-container{ display: none;}
+    #instructions .done { text-decoration: line-through; }
   </style>
 </head>
 <body>
-  <h1>
-	<div><label>Username: <input id="username" /></label></div>
-	<div><label>Password: <input id="password" type="password"/></label></div>
-    <div><button id="go">Load Posts</button></h1></div>
+  <h1>How this works</h1>
+  <div id="instructions">
+    <p>This site will help you download all of <em>your</em> posts for safe keeping.</p>
+    <ol>
+      <li id="step1">Fill out the form below</li>
+      <li id="step2">Wait while your posts are loaded</li>
+      <li id="step3">When you reach 100%, click "Save as" from the "File" menu, the gear menu, or the right click menu</li>
+      <li id="step4">Save it somewhere safe. It will bring down all the pictures, smiley faces, etc.</li>
+    </ol>
+  </div>
+  <hr/>
+  <h2 id="form-container">
+    <form>
+      <div><label>Username: <input id="username" /></label></div>
+      <div><label>Password: <input id="password" type="password"/></label></div>
+      <div><input type="submit" id="go" value="Load Posts" /></div>
+    </form>
+  </h2>
   <div id="posts"></div>
-
   <script>
-    var loginUrl = "/apc/community/index.php?action=login2";
-	var profileUrl = "/apc/community/index.php?action=profile";
-	var postsUrl = "/apc/community/index.php?action=profile;area=showposts";
-	var $header = $('h1');
-	
-	$('#go').click(function(){
-		var username = $("#username").val();
-		var password = $("#password").val();
-		
-		var userId = parseInt($('#userId').val(), 10);
+    // show this stuff with scripts so that when the page 
+    // is viewed offline it won't show (no scripts offline :))
+    $('#form-container').show();
 
-		$header.text("Logging you in...");
-		
-		$.post(loginUrl, { user: username, passwrd: password }, function(data){
-			$header.text("Getting your user id...");
-			GetUserId(function(userId, postCount){
+    // bring this in after a slight delay to encourage people to read it :)
+    setTimeout(function(){ $('#instructions').slideDown(); }, 1000);
+
+    // to scrape things via JS we have to route the data through the proxy on 
+    // the same domain
+    var loginUrl = "/community/index.php?action=login2";
+    var profileUrl = "/community/index.php?action=profile";
+    var postsUrl = "/community/index.php?action=profile;area=showposts";
+    var $header = $('h1');
+    
+    $('#form-container form').submit(function(e){
+        e.preventDefault();
+
+        $('#step1').addClass('done');
+
+        var username = $("#username").val();
+        var password = $("#password").val();
+	
+        $('#form-container').remove();
+
+        $header.text("Logging you in...");
+        
+        $.post(loginUrl, { user: username, passwrd: password }, function(data){
+            $header.text("Getting your user id...");
+            GetUserIdAndPostCount(function(userId, postCount){
                 $header.text("Loading your posts...");
-			    LoadData(userId, postCount, 0);	
-			});
-		});
-	});
+                LoadData(userId, postCount, 0);    
+            });
+        });
+    });
 
-	function GetUserId(callback){
-		$.get(profileUrl, function(data){ 
-			var $profilePage = $(data);
-			var $link = $profilePage.filter('link[rel=canonical]');
-			var href = $link.attr('href');
-			var params = href.split(';');
-			var userparamString = params.pop();	
-			var userIdString = userparamString.split('=').pop();
-			var userId = parseInt(userIdString, 10);
-			
-			var postCountString = $profilePage.find('dt:contains("Posts:")').next('dd').text();
-			var postCount = parseInt(postCountString);
-			
-			console.log({ userId: userId, postCount: postCount });
-			callback(userId, postCount);
-		});
-	}
-	
-	
-	function LoadData(userId, maxPosts, offset){
-		var url = postsUrl + ";u=" + userId
+    function GetUserIdAndPostCount(callback){
+        $.get(profileUrl, function(data){ 
+            var $profilePage = $(data);
+            var $link = $profilePage.filter('link[rel=canonical]');
+            var href = $link.attr('href');
+            var params = href.split(';');
+            var userparamString = params.pop();    
+            var userIdString = userparamString.split('=').pop();
+            var userId = parseInt(userIdString, 10);
+            
+            var postCountString = $profilePage.find('dt:contains("Posts:")').next('dd').text();
+            var postCount = parseInt(postCountString);
+            
+            callback(userId, postCount);
+        });
+    }
+    
+    
+    function LoadData(userId, maxPosts, offset){
+        var url = postsUrl + ";u=" + userId
                            + ";start=" + offset;
-		console.log(url);
-		$.get(url)
-		  .done(function(d){ 
-		    ProcessResults(d, userId, maxPosts, offset);
-		  })
-		  .always(function(){
-			offset += 25;
-			if(offset < maxPosts){
-				var percentComplete = Math.round(offset/maxPosts * 1000)/10; // round to 1 decimal place
-				if(percentComplete > 100){ percentComplete = 100; }
-				$header.text("Loading your posts... " + percentComplete + "%");
-				LoadData(userId, maxPosts, offset);
-			}
-			else{
-				$header.text("Your Posts:");
-			}
-		  })
-		  .fail(function(e){ console.log(e) });
-	}
+        $.get(url)
+          .done(function(d){ 
+            ProcessResults(d, userId, maxPosts, offset);
+          })
+          .always(function(){
+            offset += 25;
+            if(offset < maxPosts){
+                var percentComplete = Math.round(offset/maxPosts * 1000)/10; // round to 1 decimal place
+                if(percentComplete > 100){ percentComplete = 100; }
+                $header.text("Loading your posts... " + percentComplete + "%");
+                LoadData(userId, maxPosts, offset);
+            }
+            else{
+                $header.text("Your Posts");
+                $('#step2').addClass('done');
 
-	function ProcessResults(data, userId, maxPosts, offset){
-		var $topics = $(data).find('.topic')
-		$topics.find('.floatright, .core_posts > br.clear').remove();
-		
-		$topics.appendTo($('#posts'));		
-	}
+                setTimeout(function(){ $('#instructions').slideUp(); }, 2000);
+            }
+          })
+    }
+
+    function ProcessResults(data, userId, maxPosts, offset){
+        var $topics = $(data).find('.topic')
+        $topics.find('.floatright, .core_posts > br.clear').remove();
+        
+        $topics.appendTo($('#posts'));        
+    }
   </script>  
 </body>
 </html>
