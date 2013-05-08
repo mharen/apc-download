@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <title>APC Scraper</title>
-  <script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
   <style type="text/css">
     body { font-family: sans-serif; }
     .content { padding: 5px; margin: 5px; border: 1px solid #dedede; overflow: hidden }
@@ -17,10 +16,15 @@
     h1 { margin-top: 10px; }
     #instructions,#form-container{ display: none;}
     #instructions .done { text-decoration: line-through; }
+    #warning { display: none; border: 2px solid #800; background-color: #eaa; font-weight: bold; font-size: 125%; padding: 10px; margin: 10px 0; }
+    #greeting { display: none }
   </style>
+  <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+  <script src="http://code.jquery.com/jquery-migrate-1.1.1.min.js"></script>
 </head>
 <body>
-  <h1>How this works</h1>
+  <div id="warning">I'm so sorry, but this won't work with Internet Explorer or Opera. Please use <a href="http://www.google.com/chrome">Chrome</a> or <a href="http://www.mozilla.org/en-US/">Firefox</a> (they're great!). Thanks!</div>
+  <h1 id="greeting">How this works</h1>
   <div id="instructions">
     <p>This site will help you download all of <em>your</em> posts for safe keeping.</p>
     <ol>
@@ -41,39 +45,48 @@
   </h2>
   <div id="posts"></div>
   <script>
-    // show this stuff with scripts so that when the page 
-    // is viewed offline it won't show (no scripts offline :))
-    $('#form-container').show();
+      // to scrape things via JS we have to route the data through the proxy on 
+      // the same domain
+      var loginUrl = "/community/index.php?action=login2";
+      var profileUrl = "/community/index.php?action=profile";
+      var postsUrl = "/community/index.php?action=profile;area=showposts";
+      var $header = $('h1');
 
-    // bring this in after a slight delay to encourage people to read it :)
-    setTimeout(function(){ $('#instructions').slideDown(); }, 1000);
-
-    // to scrape things via JS we have to route the data through the proxy on 
-    // the same domain
-    var loginUrl = "/community/index.php?action=login2";
-    var profileUrl = "/community/index.php?action=profile";
-    var postsUrl = "/community/index.php?action=profile;area=showposts";
-    var $header = $('h1');
+    $(function(){
+      if($.browser.msie || $.browser.opera){
+        $('#warning').show();
+        return;
+      }
     
-    $('#form-container form').submit(function(e){
-        e.preventDefault();
+      // show this stuff with scripts so that when the page 
+      // is viewed offline it won't show (no scripts offline :))
 
-        $('#step1').addClass('done');
+      $('#form-container,#greeting').show();
 
-        var username = $("#username").val();
-        var password = $("#password").val();
+      // bring this in after a slight delay to encourage people to read it :)
+      setTimeout(function(){ $('#instructions').slideDown(); }, 1000);
+    
+      $('#form-container form').submit(function(e){
+          e.preventDefault();
+
+          $('#step1').addClass('done');
+
+          var username = $("#username").val();
+          var password = $("#password").val();
 	
-        $('#form-container').remove();
+          $('#form-container').remove();
 
-        $header.text("Logging you in...");
+          $header.text("Logging you in...");
         
-        $.post(loginUrl, { user: username, passwrd: password }, function(data){
+          $.post(loginUrl, { user: username, passwrd: password }, function(data){
             $header.text("Getting your user id...");
             GetUserIdAndPostCount(function(userId, postCount){
                 $header.text("Loading your posts...");
                 LoadData(userId, postCount, 0);    
             });
-        });
+          });
+      });
+
     });
 
     function GetUserIdAndPostCount(callback){
